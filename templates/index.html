@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <title>Dispositivi Connessi al Router</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.3/dist/full.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --neon-gateway: #4CAF50;
+      --neon-device: #2196F3;
+    }
+
+    body {
+      min-height: 100vh;
+      transition: background-color 0.3s ease;
+    }
+
+    svg {
+      transition: background-color 0.3s ease;
+    }
+
+    .device-tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      pointer-events: none;
+      box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+      z-index: 1000;
+    }
+
+    [data-theme='dark'] .device-tooltip {
+      background-color: rgba(255, 255, 255, 0.9);
+      color: black;
+    }
+
+    .neon-gateway {
+      filter: drop-shadow(0 0 8px var(--neon-gateway));
+    }
+
+    .neon-device {
+      filter: drop-shadow(0 0 8px var(--neon-device));
+    }
+
+    .connector {
+      transition: all 0.3s ease;
+    }
+
+    [data-theme='dark'] .connector {
+      stroke: #60A5FA;
+      filter: drop-shadow(0 0 3px #60A5FA);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 transition-all">
+  <div class="container mx-auto px-4">
+    <div class="navbar bg-base-100 shadow-lg rounded-lg mt-4">
+      <div class="flex-1">
+        <h1 class="text-2xl font-bold text-primary">Dispositivi Connessi al Router</h1>
+      </div>
+      <div class="flex-none">
+        <label class="swap swap-rotate">
+          <input type="checkbox" id="theme-toggle" />
+          <svg class="swap-on fill-current w-8 h-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+          <svg class="swap-off fill-current w-8 h-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/></svg>
+        </label>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl mt-4 p-4">
+      <div id="graph" class="w-full max-w-4xl mx-auto"></div>
+    </div>
+  </div>
+  
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    const themeToggle = document.getElementById('theme-toggle');
+    themeToggle.addEventListener('change', (e) => {
+      document.documentElement.setAttribute('data-theme', e.target.checked ? 'dark' : 'light');
+    });
+
+    const width = 800, height = 600;
+    const svg = d3.select("#graph")
+                  .append("svg")
+                  .attr("width", width)
+                  .attr("height", height)
+                  .attr("class", "rounded-xl bg-base-200 transition-all");
+    
+    const tooltip = d3.select("body")
+                     .append("div")
+                     .attr("class", "device-tooltip")
+                     .style("opacity", 0);
+    
+    const connectorGroup = svg.append("g").attr("id", "connectors");
+    const nodeGroup = svg.append("g").attr("id", "nodes");
+
+    const positions = {
+      gateway: null,
+      devices: {}
+    };
+
+    function cleanDeviceName(name) {
+      return name.replace('.homenet.telecomitalia.it', '');
+    }
+
+    function calculateInitialPositions(devices) {
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = Math.min(width, height) * 0.35;
+      
+      positions.gateway = { x: centerX, y: centerY };
+      
+      devices.forEach((device, index) => {
+        const angle = (index * 2 * Math.PI) / devices.length - Math.PI / 2;
+        const deviceX = centerX + radius * Math.cos(angle);
+        const deviceY = centerY + radius * Math.sin(angle);
+        
+        positions.devices[device.ip] = {
+          x: deviceX,
+          y: deviceY
+        };
+      });
+    }
+
+    function showTooltip(event, d) {
+      const cleanName = cleanDeviceName(d.name);
+      tooltip.transition()
+             .duration(200)
+             .style("opacity", .9);
+      tooltip.html(`IP: ${d.ip}<br/>MAC: ${d.mac}<br/>Nome: ${cleanName}`)
+             .style("left", (event.pageX + 10) + "px")
+             .style("top", (event.pageY - 28) + "px");
+    }
+
+    function hideTooltip() {
+      tooltip.transition()
+             .duration(500)
+             .style("opacity", 0);
+    }
+
+    function updatePositions() {
+      const gatewayNode = d3.select("#gateway-circle");
+      const gatewayLabel = d3.select("#gateway-label");
+      
+      if (!gatewayNode.empty()) {
+        gatewayNode
+          .attr("cx", positions.gateway.x)
+          .attr("cy", positions.gateway.y);
+        gatewayLabel
+          .attr("x", positions.gateway.x)
+          .attr("y", positions.gateway.y - 25);
+      }
+      
+      for (const ip in positions.devices) {
+        const pos = positions.devices[ip];
+        
+        d3.select("#connector-" + ip.replace(/\./g, '-'))
+          .attr("x1", positions.gateway.x)
+          .attr("y1", positions.gateway.y)
+          .attr("x2", pos.x)
+          .attr("y2", pos.y);
+        
+        d3.select("#device-circle-" + ip.replace(/\./g, '-'))
+          .attr("cx", pos.x)
+          .attr("cy", pos.y);
+        
+        d3.select("#device-label-" + ip.replace(/\./g, '-'))
+          .attr("x", pos.x)
+          .attr("y", pos.y + 30);
+      }
+    }
+
+    function dragGateway(event, d) {
+      positions.gateway.x = event.x;
+      positions.gateway.y = event.y;
+      updatePositions();
+    }
+
+    function dragDevice(event, d) {
+      positions.devices[d.ip].x = event.x;
+      positions.devices[d.ip].y = event.y;
+      updatePositions();
+    }
+
+    function updateGraph(data) {
+      if (!positions.gateway || Object.keys(positions.devices).length !== data.devices.length) {
+        calculateInitialPositions(data.devices);
+      }
+      
+      if (d3.select("#gateway-circle").empty()) {
+        nodeGroup.append("circle")
+          .attr("id", "gateway-circle")
+          .attr("r", 20)
+          .attr("class", "neon-gateway")
+          .attr("fill", "#4CAF50")
+          .call(d3.drag().on("drag", dragGateway));
+        
+        nodeGroup.append("text")
+          .attr("id", "gateway-label")
+          .attr("text-anchor", "middle")
+          .attr("class", "font-semibold fill-base-content")
+          .text("Gateway: " + data.gateway);
+      } else {
+        d3.select("#gateway-label").text("Gateway: " + data.gateway);
+      }
+
+      const deviceSelection = nodeGroup.selectAll("g.device-group")
+                                     .data(data.devices, d => d.ip);
+      
+      const deviceEnter = deviceSelection.enter()
+                                       .append("g")
+                                       .attr("class", "device-group");
+
+      deviceEnter.each(function(d) {
+        const safeIp = d.ip.replace(/\./g, '-');
+        const cleanName = cleanDeviceName(d.name);
+        
+        connectorGroup.append("line")
+          .attr("id", "connector-" + safeIp)
+          .attr("class", "connector")
+          .attr("stroke", "#2196F3")
+          .attr("stroke-width", 2);
+        
+        d3.select(this).append("circle")
+          .attr("id", "device-circle-" + safeIp)
+          .attr("class", "device-circle neon-device")
+          .attr("r", 15)
+          .attr("fill", "#2196F3")
+          .on("mouseover", showTooltip)
+          .on("mouseout", hideTooltip)
+          .call(d3.drag().on("drag", dragDevice));
+        
+        d3.select(this).append("text")
+          .attr("id", "device-label-" + safeIp)
+          .attr("class", "device-label fill-base-content font-medium")
+          .attr("text-anchor", "middle")
+          .attr("dy", 30)
+          .text(cleanName);
+      });
+
+      deviceSelection.exit().each(function(d) {
+        const safeIp = d.ip.replace(/\./g, '-');
+        d3.select("#connector-" + safeIp).remove();
+        delete positions.devices[d.ip];
+      }).remove();
+
+      updatePositions();
+    }
+
+    async function fetchData() {
+      try {
+        const response = await fetch("/data");
+        const data = await response.json();
+        updateGraph(data);
+      } catch (error) {
+        console.error("Errore nel recupero dei dati:", error);
+      }
+    }
+
+    fetchData();
+    setInterval(fetchData, 10000);
+  </script>
+</body>
+</html>
