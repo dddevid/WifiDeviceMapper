@@ -8,8 +8,8 @@ This project allows you to visualize devices connected to the local network thro
 - Displays connected devices in an interactive visualization.
 - Supports light and dark mode.
 
-## Repository
-The source code is available on GitHub: [WifiDeviceMapper](https://github.com/dddevid/WifiDeviceMapper.git)
+## Demo
+A live demo (fully functional but simulated) is available at: [WifiDeviceMapper Demo](https://dddevid.github.io/WifiDeviceMapper/)
 
 ## Requirements
 Before running the project, make sure you have the following installed:
